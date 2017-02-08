@@ -138,7 +138,7 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
         mVideoPlayer.prepare(videoSource);
 
         // prepareVideoAtUri() may be called due to network issues in an effort to reboot the stream.
-        if (mAdsLoader != null && (mCountdownTime <= 0 || mCountdownTime >= CAM_PLAY_INTERVAL)) {
+        if (shouldShowAds() && (mCountdownTime <= 0 || mCountdownTime >= CAM_PLAY_INTERVAL)) {
             // If we're outside the play interval bounds, then we know we it's time to play an ad.
             requestAds(mContext.getString(R.string.ad_tag_url));
 
@@ -164,6 +164,7 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
         return mVideoPlayer.getPlayWhenReady();
     }
 
+    private boolean shouldShowAds() { return (mAdsLoader == null); }
     /**
      * Available for Activity Lifecycle events
      * Generally should be called in onResume
@@ -217,7 +218,7 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
         // Schedule an update if necessary.
         int playbackState = mVideoPlayer.getPlaybackState();
         if (playbackState != STATE_IDLE && playbackState != STATE_ENDED) {
-            if (mCountdownTime <= 0) {
+            if (mCountdownTime <= 0 && shouldShowAds()) {
                 // reset the countdown time & fetch a new ad
                 mCountdownTime = CAM_PLAY_INTERVAL;
                 mPreviousCountdownTime = CAM_PLAY_INTERVAL;
@@ -386,6 +387,10 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
      * @param adTagUrl URL of the ad's VAST XML
      */
     private void requestAds(String adTagUrl) {
+        if (mAdsLoader == null) {
+            return;
+        }
+
         ImaSdkFactory factory = ImaSdkFactory.getInstance();
         AdDisplayContainer adDisplayContainer = factory.createAdDisplayContainer();
         adDisplayContainer.setAdContainer(mAdUiContainer);
