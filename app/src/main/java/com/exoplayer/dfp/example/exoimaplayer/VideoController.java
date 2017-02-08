@@ -454,10 +454,7 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
                 play();
                 break;
             case ALL_ADS_COMPLETED:
-                if (mAdsManager != null) {
-                    mAdsManager.destroy();
-                    mAdsManager = null;
-                }
+                destroyAdsLoader();
                 break;
             default:
                 break;
