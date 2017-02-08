@@ -115,7 +115,7 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
      */
     void destroy() {
         // just in case....
-        destroyAdsLoader();
+        destroyAdComponents();
         mPlayerView.removeCallbacks(updateProgressAction);
         // We're required to call release on the player.
         mVideoPlayer.release();
@@ -164,7 +164,7 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
         return mVideoPlayer.getPlayWhenReady();
     }
 
-    private boolean shouldShowAds() { return (mAdsLoader == null); }
+    private boolean shouldShowAds() { return (mAdsLoader != null); }
     /**
      * Available for Activity Lifecycle events
      * Generally should be called in onResume
@@ -331,7 +331,7 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
     }
 
     private void configureAdFree() {
-        destroyAdsLoader();
+        destroyAdComponents();
         mPlayerView.removeCallbacks(updateProgressAction);
         mCountdownView.setVisibility(View.GONE);
     }
@@ -356,8 +356,12 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
         });
     }
 
-    private void destroyAdsLoader() {
+    private void destroyAdComponents() {
         mAdsLoader = null;
+        destroyAdsManager();
+    }
+
+    private void destroyAdsManager() {
         if (mAdsManager != null) {
             mAdsManager.destroy();
             mAdsManager = null;
@@ -459,7 +463,7 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
                 play();
                 break;
             case ALL_ADS_COMPLETED:
-                destroyAdsLoader();
+                destroyAdsManager();
                 break;
             default:
                 break;
