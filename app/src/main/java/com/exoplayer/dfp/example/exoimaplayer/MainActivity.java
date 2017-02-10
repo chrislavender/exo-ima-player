@@ -27,9 +27,12 @@ public class MainActivity extends AppCompatActivity {
         });
 
         ExoImaPlayerApplication app = (ExoImaPlayerApplication)getApplication();
-        videoController = app.getVideoController(this);
+        videoController = app.getVideoController();
         videoController.configureVideoPlayer((ViewGroup) findViewById(R.id.videoContainer), switchUI.isChecked());
-        videoController.prepareVideoAtUri(getString(R.string.content_url));
+
+        if (savedInstanceState == null) {
+            videoController.prepareVideoAtUri(getString(R.string.content_url));
+        }
 
     }
 

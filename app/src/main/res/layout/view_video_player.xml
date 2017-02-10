@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
+<RelativeLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/videoPlayerWithAdPlayback"
     android:layout_width="match_parent"
@@ -35,4 +35,4 @@
         android:text="@string/countdown"
         android:textAlignment="center"
         android:textColor="@android:color/white"/>
-</LinearLayout>
+</RelativeLayout>

@@ -8,17 +8,21 @@ public class ExoImaPlayerApplication extends Application {
 
     private VideoController videoController;
 
-    public VideoController getVideoController(Activity activity) {
+    public VideoController getVideoController() {
         if (videoController == null) {
-            videoController = VideoController.newVideoControllerInstance(this, activity);
+            videoController = VideoController.newVideoControllerInstance(this);
         }
         return videoController;
     }
 
-    ;
+    public void destroyVideoController() {
+        videoController.destroy();
+        videoController = null;
+    }
 
     @Override
     public void onCreate() {
         super.onCreate();
     }
+
 }
