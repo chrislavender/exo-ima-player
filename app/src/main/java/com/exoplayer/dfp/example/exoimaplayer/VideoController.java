@@ -510,6 +510,7 @@ class VideoController implements AdEvent.AdEventListener,
 
     @Override
     public void onActivityDestroyed(Activity activity) {
+        destroy();
     }
     //endregion
 }
