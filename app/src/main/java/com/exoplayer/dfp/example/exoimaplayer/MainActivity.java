@@ -18,8 +18,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        ViewGroup adViewGroup = (ViewGroup) findViewById(R.id.videoPlayerWithAdPlayback);
-        SimpleExoPlayerView playerView = (SimpleExoPlayerView) findViewById(R.id.simpleExoPlayerView);
+
+        ViewGroup adViewGroup = (ViewGroup) findViewById(R.id.videoContainer);
 
         Switch switchUI = (Switch) findViewById(R.id.premiumSwitch);
         switchUI.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
@@ -29,7 +29,8 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        videoController = new VideoController(this, adViewGroup, playerView, switchUI.isChecked());
+        videoController = new VideoController(this, switchUI.isChecked());
+        videoController.addAdView(adViewGroup);
         videoController.prepareVideoAtUri(getString(R.string.content_url));
 
     }

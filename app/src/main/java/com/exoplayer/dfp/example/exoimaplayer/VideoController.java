@@ -82,13 +82,14 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
     // AdsManager exposes methods to control ad playback and listen to ad events.
     private AdsManager mAdsManager;
 
-    VideoController(Context context, ViewGroup adViewGroup, SimpleExoPlayerView playerView, boolean addFree) {
+    VideoController(Context context, boolean addFree) {
 
         mVideoPlayer = ExoPlayerFactory.newSimpleInstance(context, getABRTrackSelector(), new DefaultLoadControl());
         mVideoPlayer.addListener(this);
 
-        mAdUiContainer = adViewGroup;
-        mPlayerView = playerView;
+        View container = View.inflate(context, R.layout.view_video_player, null);
+        mAdUiContainer = (ViewGroup) container.findViewById(R.id.videoPlayerWithAdPlayback);
+        mPlayerView = (SimpleExoPlayerView) container.findViewById(R.id.simpleExoPlayerView);
         mContext = context;
 
         mPlayerView.setPlayer(mVideoPlayer);
@@ -127,6 +128,10 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
      *
      * @param uriString a string representation of a URI
      */
+
+    void addAdView(ViewGroup container) {
+        container.addView(mAdUiContainer);
+    }
     void prepareVideoAtUri(String uriString) {
         DataSource.Factory dataSourceFactory = new DefaultDataSourceFactory(mContext, mBandwidthMeter,
                 new DefaultHttpDataSourceFactory(Util.getUserAgent(mContext, mContext.getString(R.string.app_name)), mBandwidthMeter));

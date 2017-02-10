@@ -13,36 +13,9 @@
     tools:context="com.exoplayer.dfp.example.exoimaplayer.MainActivity">
 
     <RelativeLayout
-        android:id="@+id/videoPlayerWithAdPlayback"
-        android:layout_width="wrap_content"
-        android:background="@android:color/black"
+        android:id="@+id/videoContainer"
+        android:layout_width="match_parent"
         android:layout_height="186dp">
-
-        <view
-            android:id="@+id/simpleExoPlayerView"
-            class="com.google.android.exoplayer2.ui.SimpleExoPlayerView"
-            android:layout_alignParentLeft="true"
-            android:layout_alignParentStart="true"
-            android:layout_alignParentTop="true"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
-
-        <TextView
-            android:text="@string/countdown"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:layout_alignParentRight="true"
-            android:layout_alignParentEnd="true"
-            android:layout_marginRight="23dp"
-            android:layout_marginEnd="23dp"
-            android:layout_marginTop="19dp"
-            android:id="@+id/videoCountdownView"
-            android:textAlignment="center"
-            android:gravity="center"
-            android:textColor="@android:color/white"
-            android:background="@android:color/black"/>
-
     </RelativeLayout>
 
     <Switch
