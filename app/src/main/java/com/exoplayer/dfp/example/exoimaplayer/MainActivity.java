@@ -18,9 +18,6 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        ViewGroup adViewGroup = (ViewGroup) findViewById(R.id.videoPlayerWithAdPlayback);
-        SimpleExoPlayerView playerView = (SimpleExoPlayerView) findViewById(R.id.simpleExoPlayerView);
-
         Switch switchUI = (Switch) findViewById(R.id.premiumSwitch);
         switchUI.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -29,7 +26,9 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        videoController = new VideoController(this, adViewGroup, playerView, switchUI.isChecked());
+        ExoImaPlayerApplication app = (ExoImaPlayerApplication)getApplication();
+        videoController = app.getVideoController(this);
+        videoController.configureVideoPlayer((ViewGroup) findViewById(R.id.videoContainer), switchUI.isChecked());
         videoController.prepareVideoAtUri(getString(R.string.content_url));
 
     }
@@ -37,18 +36,15 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        videoController.pausePlaybackIfNecessary();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        videoController.resumePlaybackIfNecessary();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        videoController.destroy();
     }
 }

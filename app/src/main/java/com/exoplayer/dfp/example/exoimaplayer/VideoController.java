@@ -1,11 +1,15 @@
 package com.exoplayer.dfp.example.exoimaplayer;
 
+import android.app.Activity;
+import android.app.Application;
 import android.content.Context;
 import android.net.Uri;
+import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import com.google.ads.interactivemedia.v3.api.AdDisplayContainer;
@@ -49,29 +53,32 @@ import static com.google.android.exoplayer2.ExoPlayer.STATE_IDLE;
 import static com.google.android.exoplayer2.ExoPlayer.STATE_READY;
 
 
-class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorListener, ExoPlayer.EventListener {
+class VideoController implements AdEvent.AdEventListener,
+        AdErrorEvent.AdErrorListener, ExoPlayer.EventListener, Application.ActivityLifecycleCallbacks {
 
+    //region Instance Variables
     private static final String IMA_LOG_TAG = "Video/Google IMA";
     private static final String EXO_EVENT_LOG_TAG = "Video/ExoEventListener";
 
     private static final int CAM_PLAY_INTERVAL = BuildConfig.DEBUG ? 5 : 30;
 
-    private final Context mContext;
+    private final Activity currentActivity;
+
     // Exoplayer
-    private final SimpleExoPlayer mVideoPlayer;
-    private final SimpleExoPlayerView mPlayerView;
-    private final DefaultBandwidthMeter mBandwidthMeter = new DefaultBandwidthMeter();
+    private final SimpleExoPlayer videoPlayer;
+    private final SimpleExoPlayerView videoPlayerView;
+    private final DefaultBandwidthMeter bandwidthMeter = new DefaultBandwidthMeter();
     // The container for the ad's UI. Should also contain a SimpleExoPlayerView
-    private final ViewGroup mAdUiContainer;
+    private final ViewGroup adUiContainer;
+    private final TextView countdownView;
     // remember if we should automatically resume (i.e. for lifecycle event changes)
-    private boolean mShouldResumePlayback = false;
-    private int mCountdownTime = CAM_PLAY_INTERVAL;
-    private long mPreviousCountdownTime = mCountdownTime;
-    private final TextView mCountdownView;
-    private String mCurrentUri = "";
+    private boolean shouldResumePlayback = false;
+    private int countdownTime = CAM_PLAY_INTERVAL;
+    private long previousCountdownTime = countdownTime;
+    private String currentUri = "";
     // The AdsLoader instance exposes the requestAds method.
     // If it exists we show ads. Set it to null for Ad Free mode.
-    private AdsLoader mAdsLoader;
+    private AdsLoader adsLoader;
     // used to update the countdown timer
     private final Runnable updateProgressAction = new Runnable() {
         @Override
@@ -80,21 +87,31 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
         }
     };
     // AdsManager exposes methods to control ad playback and listen to ad events.
-    private AdsManager mAdsManager;
+    private AdsManager adsManager;
+    //endregion
 
-    VideoController(Context context, ViewGroup adViewGroup, SimpleExoPlayerView playerView, boolean addFree) {
+    private VideoController(Application app, Activity activity) {
+        this.videoPlayer = ExoPlayerFactory.newSimpleInstance(activity, getABRTrackSelector(), new DefaultLoadControl());
+        this.videoPlayer.addListener(this);
 
-        mVideoPlayer = ExoPlayerFactory.newSimpleInstance(context, getABRTrackSelector(), new DefaultLoadControl());
-        mVideoPlayer.addListener(this);
+        View container = View.inflate(activity, R.layout.view_video_player, null);
+        this.adUiContainer = (ViewGroup) container.findViewById(R.id.videoPlayerWithAdPlayback);
+        this.videoPlayerView = (SimpleExoPlayerView) container.findViewById(R.id.simpleExoPlayerView);
 
-        mAdUiContainer = adViewGroup;
-        mPlayerView = playerView;
-        mContext = context;
+        this.videoPlayerView.setPlayer(videoPlayer);
+        this.countdownView = (TextView) adUiContainer.findViewById(R.id.videoCountdownView);
+        this.countdownView.setVisibility(View.GONE);
+        this.currentActivity = activity;
+    }
 
-        mPlayerView.setPlayer(mVideoPlayer);
-        mCountdownView = (TextView) mAdUiContainer.findViewById(R.id.videoCountdownView);
-        mCountdownView.setVisibility(View.GONE);
+    static VideoController newVideoControllerInstance(Application application, Activity activity) {
+        VideoController vc = new VideoController(application, activity);
+        application.registerActivityLifecycleCallbacks(vc);
+        return vc;
+    }
 
+    void configureVideoPlayer(ViewGroup container, boolean addFree) {
+        container.addView(adUiContainer, new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         if (!addFree) {
             configurePrerollAds();
         }
@@ -105,7 +122,7 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
      */
     private TrackSelector getABRTrackSelector() {
         TrackSelection.Factory videoTrackSelectionFactory =
-                new AdaptiveVideoTrackSelection.Factory(mBandwidthMeter);
+                new AdaptiveVideoTrackSelection.Factory(bandwidthMeter);
 
         return new DefaultTrackSelector(videoTrackSelectionFactory);
     }
@@ -116,9 +133,9 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
     void destroy() {
         // just in case....
         destroyAdComponents();
-        mPlayerView.removeCallbacks(updateProgressAction);
+        videoPlayerView.removeCallbacks(updateProgressAction);
         // We're required to call release on the player.
-        mVideoPlayer.release();
+        videoPlayer.release();
     }
 
     /**
@@ -128,52 +145,55 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
      * @param uriString a string representation of a URI
      */
     void prepareVideoAtUri(String uriString) {
-        DataSource.Factory dataSourceFactory = new DefaultDataSourceFactory(mContext, mBandwidthMeter,
-                new DefaultHttpDataSourceFactory(Util.getUserAgent(mContext, mContext.getString(R.string.app_name)), mBandwidthMeter));
+        DataSource.Factory dataSourceFactory = new DefaultDataSourceFactory(currentActivity, bandwidthMeter,
+                new DefaultHttpDataSourceFactory(Util.getUserAgent(currentActivity, currentActivity.getString(R.string.app_name)), bandwidthMeter));
 
         Uri m3u8 = Uri.parse(uriString);
 
         MediaSource videoSource = new HlsMediaSource(m3u8, dataSourceFactory, new Handler(), null);
         // Prepare the player with the source.
-        mVideoPlayer.prepare(videoSource);
+        videoPlayer.prepare(videoSource);
 
         // prepareVideoAtUri() may be called due to network issues in an effort to reboot the stream.
-        if (shouldShowAds() && (mCountdownTime <= 0 || mCountdownTime >= CAM_PLAY_INTERVAL)) {
+        if (shouldShowAds() && (countdownTime <= 0 || countdownTime >= CAM_PLAY_INTERVAL)) {
             // If we're outside the play interval bounds, then we know we it's time to play an ad.
-            requestAds(mContext.getString(R.string.ad_tag_url));
+            requestAds(currentActivity.getString(R.string.ad_tag_url));
 
         } else {
             // Otherwise just go ahead and play.
             play();
         }
 
-        mCurrentUri = uriString;
+        currentUri = uriString;
     }
 
     private void pause() {
-        mVideoPlayer.setPlayWhenReady(false);
+        videoPlayer.setPlayWhenReady(false);
     }
 
     private void play() {
-        mPlayerView.hideController();
-        mVideoPlayer.setPlayWhenReady(true);
+        videoPlayerView.hideController();
+        videoPlayer.setPlayWhenReady(true);
 
     }
 
     private boolean isPlaying() {
-        return mVideoPlayer.getPlayWhenReady();
+        return videoPlayer.getPlayWhenReady();
     }
 
-    private boolean shouldShowAds() { return (mAdsLoader != null); }
+    private boolean shouldShowAds() {
+        return (adsLoader != null);
+    }
+
     /**
      * Available for Activity Lifecycle events
      * Generally should be called in onResume
      */
     void resumePlaybackIfNecessary() {
-        if (mShouldResumePlayback) {
+        if (shouldResumePlayback) {
             play();
         }
-        mShouldResumePlayback = false;
+        shouldResumePlayback = false;
     }
 
     /**
@@ -181,8 +201,8 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
      * Generally should be called in onPause
      */
     void pausePlaybackIfNecessary() {
-        mShouldResumePlayback = isPlaying();
-        if (mShouldResumePlayback) {
+        shouldResumePlayback = isPlaying();
+        if (shouldResumePlayback) {
             pause();
         }
     }
@@ -206,41 +226,38 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
      * https://github.com/google/ExoPlayer/blob/release-v2/library/src/main/java/com/google/android/exoplayer2/ui/PlaybackControlView.java
      */
     private void updateProgress() {
-        if (mVideoPlayer == null || mVideoPlayer.getPlaybackState() != STATE_READY) {
+        if (videoPlayer == null || videoPlayer.getPlaybackState() != STATE_READY) {
             return;
         }
 
-        long position = Math.abs(mVideoPlayer.getCurrentPosition());
-        mPlayerView.removeCallbacks(updateProgressAction);
+        long position = Math.abs(videoPlayer.getCurrentPosition());
+        videoPlayerView.removeCallbacks(updateProgressAction);
 
-        mCountdownView.setText(String.format(Locale.ENGLISH, ":%d", mCountdownTime));
+        countdownView.setText(String.format(Locale.ENGLISH, ":%d", countdownTime));
 
         // Schedule an update if necessary.
-        int playbackState = mVideoPlayer.getPlaybackState();
+        int playbackState = videoPlayer.getPlaybackState();
         if (playbackState != STATE_IDLE && playbackState != STATE_ENDED) {
-            if (mCountdownTime <= 0 && shouldShowAds()) {
+            if (countdownTime <= 0 && shouldShowAds()) {
                 // reset the countdown time & fetch a new ad
-                mCountdownTime = CAM_PLAY_INTERVAL;
-                mPreviousCountdownTime = CAM_PLAY_INTERVAL;
-                requestAds(mContext.getString(R.string.ad_tag_url));
+                countdownTime = CAM_PLAY_INTERVAL;
+                previousCountdownTime = CAM_PLAY_INTERVAL;
+                requestAds(currentActivity.getString(R.string.ad_tag_url));
                 return;
             }
 
             long positivePosition = timeInSeconds(position);
 
-            if (mPreviousCountdownTime != positivePosition) {
-                mPreviousCountdownTime = positivePosition;
-                mCountdownTime--;
+            if (previousCountdownTime != positivePosition) {
+                previousCountdownTime = positivePosition;
+                countdownTime--;
             }
 
-            mPlayerView.postDelayed(updateProgressAction, 1000);
+            videoPlayerView.postDelayed(updateProgressAction, 1000);
         }
     }
 
-
-    /**
-     * ExoPlayer.EventListener
-     */
+    //region ExoPlayer.EventListener Methods
 
     @Override
     public void onTimelineChanged(Timeline timeline, Object manifest) {
@@ -260,9 +277,9 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
     @Override
     public void onPlayerStateChanged(boolean playWhenReady, int playbackState) {
         Log.d(EXO_EVENT_LOG_TAG, "onPlayerStateChanged");
-        if (mAdsLoader != null) {
+        if (adsLoader != null) {
             // pause the countdown timer
-            mPlayerView.removeCallbacks(updateProgressAction);
+            videoPlayerView.removeCallbacks(updateProgressAction);
         }
         switch (playbackState) {
             /**
@@ -270,10 +287,10 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
              * {@link #getPlayWhenReady()} returns true, and paused otherwise.
              */
             case STATE_READY:
-                if (playWhenReady && mAdsLoader != null) {
+                if (playWhenReady && adsLoader != null) {
                     // if the player is ready and mWithAds is true start the updateProgressAction
                     // this should be limited to one location.
-                    mPlayerView.post(updateProgressAction);
+                    videoPlayerView.post(updateProgressAction);
                 }
                 break;
             /**
@@ -307,7 +324,7 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
             // temporary workaround for Google HLS bug in current ExoPlayer.
             // We'd like to use the newer version of the player as it includes many other
             // features prepackaged that we'd have to implement ourselves otherwise.
-            prepareVideoAtUri(mCurrentUri);
+            prepareVideoAtUri(currentUri);
         }
     }
 
@@ -315,56 +332,50 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
     public void onPositionDiscontinuity() {
         Log.d(EXO_EVENT_LOG_TAG, "onPositionDiscontinuity");
     }
+    //endregion
 
-    /**
-     * Google IMA Events
-     */
-
-    /**
-     * Configure Google IMA elements for a given ViewGroup
-     *
-     */
+    //region Google IMA Events
     private void configurePrerollAds() {
-        mCountdownView.setVisibility(View.VISIBLE);
+        countdownView.setVisibility(View.VISIBLE);
         initializeAdsLoader();
 
     }
 
     private void configureAdFree() {
         destroyAdComponents();
-        mPlayerView.removeCallbacks(updateProgressAction);
-        mCountdownView.setVisibility(View.GONE);
+        videoPlayerView.removeCallbacks(updateProgressAction);
+        countdownView.setVisibility(View.GONE);
     }
 
     private void initializeAdsLoader() {
         // Create an AdsLoader.
-        mAdsLoader = ImaSdkFactory.getInstance().createAdsLoader(mContext);
+        adsLoader = ImaSdkFactory.getInstance().createAdsLoader(currentActivity);
         // Add listeners for when ads are loaded and for errors.
-        mAdsLoader.addAdErrorListener(this);
-        mAdsLoader.addAdsLoadedListener(new AdsLoader.AdsLoadedListener() {
+        adsLoader.addAdErrorListener(this);
+        adsLoader.addAdsLoadedListener(new AdsLoader.AdsLoadedListener() {
             @Override
             public void onAdsManagerLoaded(AdsManagerLoadedEvent adsManagerLoadedEvent) {
                 // Ads were successfully loaded, so get the AdsManager instance. AdsManager has
                 // events for ad playback and errors.
-                mAdsManager = adsManagerLoadedEvent.getAdsManager();
+                adsManager = adsManagerLoadedEvent.getAdsManager();
 
                 // Attach event and error event listeners.
-                mAdsManager.addAdErrorListener(VideoController.this);
-                mAdsManager.addAdEventListener(VideoController.this);
-                mAdsManager.init();
+                adsManager.addAdErrorListener(VideoController.this);
+                adsManager.addAdEventListener(VideoController.this);
+                adsManager.init();
             }
         });
     }
 
     private void destroyAdComponents() {
-        mAdsLoader = null;
+        adsLoader = null;
         destroyAdsManager();
     }
 
     private void destroyAdsManager() {
-        if (mAdsManager != null) {
-            mAdsManager.destroy();
-            mAdsManager = null;
+        if (adsManager != null) {
+            adsManager.destroy();
+            adsManager = null;
         }
     }
 
@@ -382,7 +393,7 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
             configurePrerollAds();
         }
 
-        prepareVideoAtUri(mCurrentUri);
+        prepareVideoAtUri(currentUri);
     }
 
     /**
@@ -391,13 +402,13 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
      * @param adTagUrl URL of the ad's VAST XML
      */
     private void requestAds(String adTagUrl) {
-        if (mAdsLoader == null) {
+        if (adsLoader == null) {
             return;
         }
 
         ImaSdkFactory factory = ImaSdkFactory.getInstance();
         AdDisplayContainer adDisplayContainer = factory.createAdDisplayContainer();
-        adDisplayContainer.setAdContainer(mAdUiContainer);
+        adDisplayContainer.setAdContainer(adUiContainer);
 
         // Create the ads request.
         AdsRequest request = factory.createAdsRequest();
@@ -406,15 +417,15 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
         request.setContentProgressProvider(new ContentProgressProvider() {
             @Override
             public VideoProgressUpdate getContentProgress() {
-                if (mVideoPlayer == null || !isPlaying() || mVideoPlayer.getDuration() <= 0) {
+                if (videoPlayer == null || !isPlaying() || videoPlayer.getDuration() <= 0) {
                     return VideoProgressUpdate.VIDEO_TIME_NOT_READY;
                 }
-                return new VideoProgressUpdate(mVideoPlayer.getCurrentPosition(), mVideoPlayer.getDuration());
+                return new VideoProgressUpdate(videoPlayer.getCurrentPosition(), videoPlayer.getDuration());
             }
         });
 
         // Request the ad. After the ad is loaded, onAdsManagerLoaded() will be called.
-        mAdsLoader.requestAds(request);
+        adsLoader.requestAds(request);
     }
 
     @Override
@@ -423,18 +434,18 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
         Log.d(IMA_LOG_TAG, "Error: " + adErrorEvent.getError().getMessage());
 
         //TODO: retry a few times with a fallback position (see iOS)
-//        requestAds(mContext.getString(R.string.ad_tag_fallback_url));
+//        requestAds(applicationContext.getString(R.string.ad_tag_fallback_url));
 
         // For whatever reason the AdsLoader craps out and starts returning: "The VAST response document is empty."
         // Maybe it's tired? Just create a fresh one and see if that helps.
         initializeAdsLoader();
 
-        if (mVideoPlayer.getPlaybackState() != STATE_READY) {
+        if (videoPlayer.getPlaybackState() != STATE_READY) {
             // if we're not in a play state yet then start the player
             play();
         } else {
             // otherwise, just restart the countdown timer
-            mPlayerView.post(updateProgressAction);
+            videoPlayerView.post(updateProgressAction);
         }
     }
 
@@ -450,7 +461,7 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
                 // AdsManager.start() begins ad playback. This method is ignored for VMAP or
                 // ad rules play lists, as the SDK will automatically start executing the
                 // playlist.
-                mAdsManager.start();
+                adsManager.start();
                 break;
             case CONTENT_PAUSE_REQUESTED:
                 // AdEventType.CONTENT_PAUSE_REQUESTED is fired immediately before a video
@@ -469,4 +480,42 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
                 break;
         }
     }
+    //endregion
+
+    //region ActivityLifecycleCallbacks
+    @Override
+    public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
+
+    }
+
+    @Override
+    public void onActivityStarted(Activity activity) {
+
+    }
+
+    @Override
+    public void onActivityResumed(Activity activity) {
+        resumePlaybackIfNecessary();
+    }
+
+    @Override
+    public void onActivityPaused(Activity activity) {
+        pausePlaybackIfNecessary();
+    }
+
+    @Override
+    public void onActivityStopped(Activity activity) {
+
+    }
+
+    @Override
+    public void onActivitySaveInstanceState(Activity activity, Bundle outState) {
+
+    }
+
+    @Override
+    public void onActivityDestroyed(Activity activity) {
+        destroy();
+    }
+    //endregion
 }

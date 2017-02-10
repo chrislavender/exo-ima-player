@@ -1,7 +1,10 @@
 <resources>
     <string name="app_name">exo-ima-player</string>
     <string name="countdown">sec:</string>
-    <string name="content_url"><![CDATA[https://wowzaprod3-i.akamaihd.net/hls/live/253362/05eabbd7/playlist.m3u8]]></string>
+    <string name="content_url"><![CDATA[https://devimages.apple.com.edgekey.net/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8]]></string>
+    <!--surfline-->
     <string name="ad_tag_url"><![CDATA[https://pubads.g.doubleclick.net/gampad/ads?sz=640x480&iu=/1024858/PreRoll&gdfp_req=1&env=vp&output=vast&unviewed_position_start=1&correlator=]]></string>
     <string name="ad_tag_fallback_url"><![CDATA[https://pubads.g.doubleclick.net/gampad/ads?sz=640x480&iu=/1024858/App_PreRoll_Backfill&gdfp_req=1&env=vp&output=vast&unviewed_position_start=1&correlator=]]></string>
+    <!--<string name="ad_tag_url"><![CDATA[https://pubads.g.doubleclick.net/gampad/ads?sz=640x480&iu=/124319096/external/single_ad_samples&ciu_szs=300x250&impl=s&gdfp_req=1&env=vp&output=vast&unviewed_position_start=1&cust_params=deployment%3Ddevsite%26sample_ct%3Dlinear&correlator=]]></string>-->
+    <!--<string name="ad_tag_fallback_url"><![CDATA[https://pubads.g.doubleclick.net/gampad/ads?sz=640x480&iu=/124319096/external/single_ad_samples&ciu_szs=300x250&impl=s&gdfp_req=1&env=vp&output=vast&unviewed_position_start=1&cust_params=deployment%3Ddevsite%26sample_ct%3Dlinear&correlator=]]></string>-->
 </resources>
