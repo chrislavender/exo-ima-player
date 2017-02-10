@@ -63,12 +63,12 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
     private final DefaultBandwidthMeter mBandwidthMeter = new DefaultBandwidthMeter();
     // The container for the ad's UI. Should also contain a SimpleExoPlayerView
     private final ViewGroup mAdUiContainer;
+    private final TextView mCountdownView;
+    private MediaSource videoSource;
     // remember if we should automatically resume (i.e. for lifecycle event changes)
     private boolean mShouldResumePlayback = false;
     private int mCountdownTime = CAM_PLAY_INTERVAL;
     private long mPreviousCountdownTime = mCountdownTime;
-    private final TextView mCountdownView;
-    private String mCurrentUri = "";
     // The AdsLoader instance exposes the requestAds method.
     // If it exists we show ads. Set it to null for Ad Free mode.
     private AdsLoader mAdsLoader;
@@ -122,6 +122,10 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
         mVideoPlayer.release();
     }
 
+    void addAdView(ViewGroup container) {
+        container.addView(mAdUiContainer);
+    }
+
     /**
      * This method presumes an HLS stream.
      * However it should be modifiable to handle different Media Sources
@@ -129,18 +133,14 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
      * @param uriString a string representation of a URI
      */
 
-    void addAdView(ViewGroup container) {
-        container.addView(mAdUiContainer);
-    }
+
     void prepareVideoAtUri(String uriString) {
         DataSource.Factory dataSourceFactory = new DefaultDataSourceFactory(mContext, mBandwidthMeter,
                 new DefaultHttpDataSourceFactory(Util.getUserAgent(mContext, mContext.getString(R.string.app_name)), mBandwidthMeter));
 
         Uri m3u8 = Uri.parse(uriString);
 
-        MediaSource videoSource = new HlsMediaSource(m3u8, dataSourceFactory, new Handler(), null);
-        // Prepare the player with the source.
-        mVideoPlayer.prepare(videoSource);
+        videoSource = new HlsMediaSource(m3u8, dataSourceFactory, new Handler(), null);
 
         // prepareVideoAtUri() may be called due to network issues in an effort to reboot the stream.
         if (shouldShowAds() && (mCountdownTime <= 0 || mCountdownTime >= CAM_PLAY_INTERVAL)) {
@@ -152,24 +152,29 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
             play();
         }
 
-        mCurrentUri = uriString;
     }
 
     private void pause() {
         mVideoPlayer.setPlayWhenReady(false);
+        mVideoPlayer.stop();
     }
 
     private void play() {
         mPlayerView.hideController();
+        if (mVideoPlayer.getPlaybackState() == STATE_IDLE) {
+            mVideoPlayer.prepare(videoSource);
+        }
         mVideoPlayer.setPlayWhenReady(true);
-
     }
 
     private boolean isPlaying() {
         return mVideoPlayer.getPlayWhenReady();
     }
 
-    private boolean shouldShowAds() { return (mAdsLoader != null); }
+    private boolean shouldShowAds() {
+        return (mAdsLoader != null);
+    }
+
     /**
      * Available for Activity Lifecycle events
      * Generally should be called in onResume
@@ -312,7 +317,7 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
             // temporary workaround for Google HLS bug in current ExoPlayer.
             // We'd like to use the newer version of the player as it includes many other
             // features prepackaged that we'd have to implement ourselves otherwise.
-            prepareVideoAtUri(mCurrentUri);
+            play();
         }
     }
 
@@ -327,7 +332,6 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
 
     /**
      * Configure Google IMA elements for a given ViewGroup
-     *
      */
     private void configurePrerollAds() {
         mCountdownView.setVisibility(View.VISIBLE);
@@ -362,12 +366,16 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
     }
 
     private void destroyAdComponents() {
+        if (mAdsLoader != null) {
+            mAdsLoader.removeAdErrorListener(this);
+        }
         mAdsLoader = null;
         destroyAdsManager();
     }
 
     private void destroyAdsManager() {
         if (mAdsManager != null) {
+            mAdsManager.removeAdErrorListener(this);
             mAdsManager.destroy();
             mAdsManager = null;
         }
@@ -386,8 +394,6 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
         } else {
             configurePrerollAds();
         }
-
-        prepareVideoAtUri(mCurrentUri);
     }
 
     /**
