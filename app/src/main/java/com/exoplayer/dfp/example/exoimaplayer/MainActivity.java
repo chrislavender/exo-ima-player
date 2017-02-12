@@ -1,6 +1,5 @@
 package com.exoplayer.dfp.example.exoimaplayer;
 
-import android.os.Build;
 import android.os.Bundle;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
@@ -10,6 +9,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.CompoundButton;
+import android.widget.ImageButton;
 import android.widget.RelativeLayout;
 import android.widget.Switch;
 
@@ -61,35 +61,49 @@ public class MainActivity extends AppCompatActivity implements
             });
         }
 
-        RelativeLayout.LayoutParams lps = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dpToPx(videoHeight));
-        ViewGroup vg = (ViewGroup) findViewById(R.id.videoContainer);
-        vg.setLayoutParams(lps);
+        videoController = new VideoController(MainActivity.this, adFree);
 
-        videoController = new VideoController(this, vg, adFree);
-        videoController.prepareVideoAtUri(getString(R.string.content_url));
+        final ImageButton initialPlay = (ImageButton) findViewById(R.id.fake_play_button);
+        if (initialPlay != null) {
+            initialPlay.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    RelativeLayout.LayoutParams lps = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dpToPx(videoHeight));
+                    ViewGroup vg = (ViewGroup) findViewById(R.id.videoContainer);
+                    vg.setLayoutParams(lps);
 
+                    videoController.prepareVideoAtUri(getString(R.string.content_url), vg);
+                }
+            });
+        }
     }
 
     @Override
-    public void onSaveInstanceState(Bundle outState) {
-        outState.putBoolean("switch", adFree);
-        super.onSaveInstanceState(outState);
+    protected void onResume() {
+        videoController.setPrerollAdState(adFree);
+        videoController.resumeVideoIfNecessary();
+        super.onResume();
     }
 
+    @Override
+    protected void onPause() {
+        videoController.pauseVideoIfNecessary();
+        super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        videoController.destroy();
+        super.onDestroy();
+    }
 
     @Override
     public void onFullscreenToggled(final boolean shouldFullscreen) {
         Log.d("ROTATION_TEST", "Fullscreen");
 
         if (shouldFullscreen) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.KITKAT) {
-                getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
-            }
             setViewStateForFullscreenVideo();
         } else {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.KITKAT) {
-                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-            }
             setViewStateForDefaultViewing();
         }
 
@@ -109,11 +123,6 @@ public class MainActivity extends AppCompatActivity implements
         ViewGroup vg = (ViewGroup) findViewById(R.id.videoContainer);
         vg.setLayoutParams(lps);
 
-    }
-
-    public int dpToPx(int dp) {
-        DisplayMetrics displayMetrics = this.getResources().getDisplayMetrics();
-        return Math.round(dp * (displayMetrics.xdpi / DisplayMetrics.DENSITY_DEFAULT));
     }
 
     private void setViewStateForFullscreenVideo() {
@@ -148,5 +157,10 @@ public class MainActivity extends AppCompatActivity implements
                 break;
 
         }
+    }
+
+    public int dpToPx(int dp) {
+        DisplayMetrics displayMetrics = this.getResources().getDisplayMetrics();
+        return Math.round(dp * (displayMetrics.xdpi / DisplayMetrics.DENSITY_DEFAULT));
     }
 }

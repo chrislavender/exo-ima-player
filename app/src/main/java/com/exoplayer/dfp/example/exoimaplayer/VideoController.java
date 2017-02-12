@@ -1,9 +1,7 @@
 package com.exoplayer.dfp.example.exoimaplayer;
 
 import android.app.Activity;
-import android.app.Application;
 import android.net.Uri;
-import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
 import android.view.View;
@@ -49,8 +47,7 @@ import static com.google.android.exoplayer2.ExoPlayer.STATE_IDLE;
 import static com.google.android.exoplayer2.ExoPlayer.STATE_READY;
 
 
-class VideoController implements AdEvent.AdEventListener,
-        AdErrorEvent.AdErrorListener, ExoPlayer.EventListener, Application.ActivityLifecycleCallbacks {
+class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorListener, ExoPlayer.EventListener {
 
     //region Instance Variables
     private static final String IMA_LOG_TAG = "Video/Google IMA";
@@ -87,7 +84,7 @@ class VideoController implements AdEvent.AdEventListener,
     //endregion
 
     // region Construction & Deconstruction
-    VideoController(Activity activity, ViewGroup container, boolean addFree) {
+    VideoController(Activity activity, boolean addFree) {
         this.videoPlayer = ExoPlayerFactory.newSimpleInstance(activity, getABRTrackSelector(), new DefaultLoadControl());
         this.videoPlayer.addListener(this);
 
@@ -100,14 +97,9 @@ class VideoController implements AdEvent.AdEventListener,
         this.countdownView.setVisibility(View.GONE);
         this.currentActivity = activity;
 
-
-        container.addView(this.adUiContainer);
-
         if (!addFree) {
             configurePrerollAds();
         }
-
-        this.currentActivity.getApplication().registerActivityLifecycleCallbacks(this);
     }
 
     /**
@@ -126,8 +118,6 @@ class VideoController implements AdEvent.AdEventListener,
     void destroy() {
         // just in case....
         destroyAdComponents();
-
-        currentActivity.getApplication().unregisterActivityLifecycleCallbacks(this);
         videoPlayerView.removeCallbacks(updateProgressAction);
         // We're required to call release on the player.
         videoPlayer.release();
@@ -135,13 +125,16 @@ class VideoController implements AdEvent.AdEventListener,
     // endregion
 
     // region Business Logic
+
     /**
      * This method presumes an HLS stream.
      * However it should be modifiable to handle different Media Sources
      *
      * @param uriString a string representation of a URI
      */
-    void prepareVideoAtUri(String uriString) {
+    void prepareVideoAtUri(String uriString, ViewGroup container) {
+        container.addView(adUiContainer);
+
         DataSource.Factory dataSourceFactory = new DefaultDataSourceFactory(currentActivity, bandwidthMeter,
                 new DefaultHttpDataSourceFactory(Util.getUserAgent(currentActivity, currentActivity.getString(R.string.app_name)), bandwidthMeter));
 
@@ -175,8 +168,18 @@ class VideoController implements AdEvent.AdEventListener,
 
     }
 
-    private boolean isPlaying() {
-        return videoPlayer.getPlayWhenReady();
+    void pauseVideoIfNecessary() {
+        shouldResumePlayback = videoPlayer.getPlayWhenReady();
+        if (shouldResumePlayback) {
+            pause();
+        }
+    }
+
+    void resumeVideoIfNecessary() {
+        if (shouldResumePlayback) {
+            play();
+            shouldResumePlayback = false;
+        }
     }
 
     private boolean shouldShowAds() {
@@ -209,7 +212,7 @@ class VideoController implements AdEvent.AdEventListener,
         long position = Math.abs(videoPlayer.getCurrentPosition());
         videoPlayerView.removeCallbacks(updateProgressAction);
 
-        countdownView.setText(String.format(Locale.ENGLISH, ":%d", countdownTime));
+        countdownView.setText(String.format(Locale.ENGLISH, "%ds", countdownTime));
 
         // Schedule an update if necessary.
         int playbackState = videoPlayer.getPlaybackState();
@@ -449,62 +452,4 @@ class VideoController implements AdEvent.AdEventListener,
     }
     //endregion
 
-    //region ActivityLifecycleCallbacks
-    @Override
-    public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
-        Log.d("LifecycleTest", "onActivityCreated  WindowFocused:" + activity.hasWindowFocus());
-    }
-
-    @Override
-    public void onActivityStarted(Activity activity) {
-        Log.d("LifecycleTest", "onActivityStarted  WindowFocused:" + activity.hasWindowFocus());
-    }
-
-    @Override
-    public void onActivityResumed(Activity activity) {
-        Log.d("LifecycleTest", "onActivityResumed  WindowFocused:" + activity.hasWindowFocus());
-        if (activity != currentActivity) {
-            return;
-        }
-
-        if (shouldResumePlayback) {
-            play();
-            shouldResumePlayback = false;
-        }
-    }
-
-    @Override
-    public void onActivityPaused(Activity activity) {
-        Log.d("LifecycleTest", "onActivityPaused  WindowFocused:" + activity.hasWindowFocus() +
-                "  Video View Visible:" + videoPlayerView.getVisibility());
-
-        if (activity != currentActivity) {
-            return;
-        }
-
-        shouldResumePlayback = videoPlayer.getPlayWhenReady();
-        if (shouldResumePlayback) {
-            // we're setup to play so pause and remember to restart if we return.
-            pause();
-        }
-    }
-
-    @Override
-    public void onActivityStopped(Activity activity) {
-
-        Log.d("LifecycleTest", "onActivityStopped  WindowFocused:" + activity.hasWindowFocus() +
-                "  Video View Visible:" + videoPlayerView.getVisibility());
-    }
-
-    @Override
-    public void onActivitySaveInstanceState(Activity activity, Bundle outState) {
-        Log.d("LifecycleTest", "onActivitySaveInstanceState  WindowFocused:" + activity.hasWindowFocus());
-
-    }
-
-    @Override
-    public void onActivityDestroyed(Activity activity) {
-        Log.d("LifecycleTest", "onActivityDestroyed  WindowFocused:" + activity.hasWindowFocus());
-    }
-    //endregion
 }

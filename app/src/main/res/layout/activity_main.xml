@@ -8,15 +8,22 @@
     android:background="@android:color/darker_gray"
     tools:context="com.exoplayer.dfp.example.exoimaplayer.MainActivity">
 
-    <RelativeLayout
+    <FrameLayout
         android:id="@+id/videoContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@android:color/black"
         android:layout_alignParentLeft="true"
-        android:layout_alignParentStart="true">
+        android:layout_alignParentStart="true"
+        android:background="@android:color/holo_blue_light">
 
-    </RelativeLayout>
+        <ImageButton
+            android:id="@+id/fake_play_button"
+            style="@style/ExoMediaButton.Play"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:layout_gravity="center"
+            android:background="#CC000000"/>
+    </FrameLayout>
 
     <Switch
         android:id="@+id/premiumSwitch"
