@@ -118,6 +118,11 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
     void destroy() {
         // just in case....
         destroyAdComponents();
+
+        if (mediaSource != null) {
+            mediaSource.releaseSource();
+        }
+
         videoPlayerView.removeCallbacks(updateProgressAction);
         // We're required to call release on the player.
         videoPlayer.release();
@@ -297,7 +302,11 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
     @Override
     public void onPlayerError(ExoPlaybackException error) {
         Log.d(EXO_EVENT_LOG_TAG, "onPlayerError");
-        pause();
+
+        if (videoPlayer.getPlayWhenReady()) {
+            pause();
+        }
+
 
         if (error.getCause() instanceof BehindLiveWindowException) {
             // http://stackoverflow.com/a/39851408/558776
@@ -349,14 +358,18 @@ class VideoController implements AdEvent.AdEventListener, AdErrorEvent.AdErrorLi
     }
 
     private void destroyAdComponents() {
+        adsLoader.removeAdErrorListener(this);
         adsLoader = null;
         destroyAdsManager();
     }
 
     private void destroyAdsManager() {
         if (adsManager != null) {
+            adsManager.removeAdErrorListener(this);
+            adsManager.removeAdEventListener(this);
             adsManager.destroy();
             adsManager = null;
+            // DIE DIE DIE!!!
         }
     }
 
